@@ -1,0 +1,14 @@
+{
+  "name": "RIGZA — Starz Student Guide",
+  "short_name": "RIGZA",
+  "description": "A student schedule, campus check-in, reminders, and progress app for Starz University.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2783DE",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icons/starz.jpg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any maskable" },
+    { "src": "icons/starz.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any maskable" }
+  ]
+}

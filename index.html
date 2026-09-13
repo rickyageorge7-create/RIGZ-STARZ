@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1d3a5f" />
+  <title>RIGZA — Starz University Student Guide</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-view="dashboard" class="auth-pending">
+  <div id="authGate" class="auth-gate">
+    <div class="auth-card">
+      <div class="brand auth-brand">
+        <div class="brand-mark"><img src="icons/starz.jpg" alt="Starz University logo" /></div>
+        <div><strong class="brand-name">RIGZA</strong><span>Starz student companion</span></div>
+      </div>
+      <p class="eyebrow" id="authEyebrow">Private student workspace</p>
+      <h1 id="authTitle">Sign in to RIGZA</h1>
+      <p id="authHint" class="auth-hint">Your schedule, assignments, progress, and profile stay connected to your account.</p>
+      <form id="authForm" class="auth-form">
+        <label id="authNameLabel" hidden>Full name<input id="authName" autocomplete="name" /></label>
+        <label>Email address<input id="authEmail" type="email" autocomplete="email" required /></label>
+        <label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required /></label>
+        <label id="newPasswordLabel" hidden>New password<input id="newPassword" type="password" autocomplete="new-password" minlength="6" /></label>
+        <button id="authSubmit" class="primary full" type="submit">Sign in</button>
+      </form>
+      <p id="authMessage" class="auth-message" role="status"></p>
+      <div class="auth-links">
+        <button id="authModeToggle" class="ghost" type="button">Create an account</button>
+        <button id="forgotPassword" class="ghost" type="button">Forgot password?</button>
+        <button id="cancelPasswordReset" class="ghost" type="button" hidden>Back to sign in</button>
+      </div>
+    </div>
+  </div>
+  <div class="app-watermark" aria-hidden="true">
+    <img src="icons/starz.jpg" alt="" />
+  </div>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="App navigation">
+      <div class="brand">
+        <div class="brand-mark">
+          <img src="icons/starz.jpg" alt="Starz University logo" />
+        </div>
+        <div>
+          <strong class="brand-name">RIGZA</strong>
+          <span>Starz student companion</span>
+        </div>
+      </div>
+      <nav aria-label="Primary">
+        <button class="nav-item active" data-view="dashboard">Dashboard</button>
+        <button class="nav-item" data-view="schedule">Schedule</button>
+        <button class="nav-item" data-view="assignments">Assignments</button>
+        <button class="nav-item" data-view="progress">Progress</button>
+        <button class="nav-item" data-view="tools">Tools</button>
+        <button class="nav-item" data-view="settings">Settings</button>
+      </nav>
+      <div class="sidebar-card">
+        <span class="mini-label">Campus radius</span>
+        <strong>300 meters</strong>
+        <small>Daily checkmark only before first class.</small>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow"><span class="eyebrow-dot"></span> Student school guide</p>
+          <h1 id="viewTitle">Dashboard</h1>
+          <p class="topbar-note">Your calm space for classes, check-ins, and getting things done.</p>
+        </div>
+        <div class="top-actions">
+          <button id="installBtn" class="ghost hidden">Install app</button>
+          <button id="enableNotifications" class="primary">Enable notifications</button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <div class="hero-card">
+          <div>
+            <p class="eyebrow"><span class="eyebrow-dot"></span> Welcome back, Starz student</p>
+            <h2 id="todayStatus">Checking schedule…</h2>
+            <p id="todayDetail">Your class schedule and campus check-in status will appear here.</p>
+          </div>
+          <button id="checkLocation" class="primary large">Check campus location</button>
+        </div>
+
+        <div class="dashboard-section-heading">
+          <div>
+            <p class="eyebrow">Today at a glance</p>
+            <h2>Your schedule and tasks</h2>
+          </div>
+          <span class="section-hint">Keeps you on track</span>
+        </div>
+        <div class="grid two dashboard-overview">
+          <article class="card">
+            <div class="card-header">
+              <h3>Next class</h3>
+              <span id="nextClassBadge" class="badge blue">Loading</span>
+            </div>
+            <div id="nextClass" class="empty">No upcoming class found.</div>
+          </article>
+          <article class="card">
+            <div class="card-header">
+              <h3>Due soon</h3>
+              <span class="badge orange">Assignments</span>
+            </div>
+            <div id="dueSoon" class="stack"></div>
+          </article>
+        </div>
+
+        <div class="grid three stats-row">
+          <article class="stat"><span>Campus streak</span><strong id="streakStat">0 days</strong></article>
+          <article class="stat"><span>Consistency</span><strong id="consistencyStat">0%</strong></article>
+          <article class="stat"><span>Assignments done</span><strong id="assignmentStat">0%</strong></article>
+        </div>
+
+        <div class="pulse-card">
+          <div class="pulse-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="pulse-content">
+            <div class="card-header">
+              <div>
+                <p class="eyebrow">RIGZA Pulse</p>
+                <h2 id="pulseHeadline">Your day, in focus.</h2>
+              </div>
+              <span id="pulseDate" class="pulse-date"></span>
+            </div>
+            <p id="pulseMessage" class="pulse-message">Loading your daily focus…</p>
+            <div class="pulse-metrics">
+              <div><span>Next move</span><strong id="pulseNext">Loading</strong></div>
+              <div><span>Open work</span><strong id="pulseWork">0 tasks</strong></div>
+              <div><span>Streak</span><strong id="pulseStreak">0 days</strong></div>
+            </div>
+            <div class="pulse-actions">
+              <button id="pulseAssignments" class="pulse-action" type="button">Open assignments <span>→</span></button>
+              <button id="pulseCopilot" class="pulse-action" type="button">Ask RIGZA Copilot <span>✦</span></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="schedule" class="view">
+        <div class="toolbar">
+          <h2>Your class schedule</h2>
+          <button id="addClassBtn" class="primary">Add class</button>
+        </div>
+        <div id="weeklySchedule" class="week-grid"></div>
+      </section>
+
+      <section id="assignments" class="view">
+        <div class="toolbar">
+          <h2>Classwork & assignments</h2>
+          <button id="addAssignmentBtn" class="primary">Add assignment</button>
+        </div>
+        <div id="assignmentList" class="stack"></div>
+      </section>
+
+      <section id="progress" class="view">
+        <div class="toolbar">
+          <h2>Progress & consistency</h2>
+          <button id="markTestDay" class="ghost">Demo: mark today</button>
+        </div>
+        <div class="grid two">
+          <article class="card">
+            <h3>Campus check-ins</h3>
+            <div id="calendarGrid" class="calendar-grid"></div>
+          </article>
+          <article class="card">
+            <h3>How your score works</h3>
+            <ul class="rule-list">
+              <li>✅ appears once per day.</li>
+              <li>It counts only on Mon–Sat.</li>
+              <li>On class days, you must arrive before your first class.</li>
+              <li>Your campus zone is 300m around Starz University.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="settings" class="view">
+        <div class="toolbar">
+          <h2>Settings</h2>
+          <button id="saveSettings" class="primary">Save settings</button>
+        </div>
+        <div class="grid two">
+          <article class="card form-card">
+            <h3>Student account</h3>
+            <p class="meta">Your account is secured by Supabase Auth. Workspace data is private to your account.</p>
+            <div id="accountSummary" class="account-summary" hidden></div>
+            <div id="accountFormFields">
+              <label>Full name<input id="profileName" autocomplete="name" placeholder="Your name" /></label>
+              <label>Email address<input id="profileEmail" type="email" autocomplete="email" placeholder="you@example.com" /></label>
+              <button id="createAccount" class="primary full" type="button">Update profile</button>
+            </div>
+            <button id="signOutAccount" class="ghost full" type="button" hidden>Sign out on this device</button>
+          </article>
+          <article class="card form-card">
+            <h3>Appearance</h3>
+            <label>Theme<select id="themePreference">
+              <option value="aurora">Aurora dark</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="system">Use device setting</option>
+            </select></label>
+            <label>Accent color<select id="accentPreference">
+              <option value="blue">Campus blue</option>
+              <option value="green">Starz green</option>
+              <option value="purple">Student purple</option>
+            </select></label>
+            <label class="check-row"><input id="compactPreference" type="checkbox" /> Compact layout</label>
+            <label class="check-row"><input id="motionPreference" type="checkbox" /> Reduce animations</label>
+          </article>
+          <article class="card form-card">
+            <h3>Copilot connection</h3>
+            <p class="meta">Use the local assistant anywhere, or connect an OpenAI-compatible chat service for broader questions. Your API key stays in this browser.</p>
+            <label>Assistant mode<select id="copilotMode">
+              <option value="auto">Auto — online when configured</option>
+              <option value="offline">Offline only</option>
+              <option value="online">Online only</option>
+            </select></label>
+            <label>Chat endpoint<input id="copilotEndpoint" type="url" placeholder="https://api.openai.com/v1/chat/completions" /></label>
+            <label>Model<input id="copilotModel" placeholder="gpt-4o-mini" /></label>
+            <label>API key<input id="copilotApiKey" type="password" autocomplete="off" placeholder="Stored locally on this device" /></label>
+            <small class="meta">For privacy, RIGZA sends only your question and a short app context when online. Do not use a key you cannot safely store in a browser.</small>
+          </article>
+          <article class="card form-card">
+            <h3>Campus geofence</h3>
+            <label>School name<input id="schoolName" /></label>
+            <label>Campus plus code / address<textarea id="campusAddress"></textarea></label>
+            <div class="inline-fields">
+              <label>Latitude<input id="campusLat" type="number" step="0.000001" /></label>
+              <label>Longitude<input id="campusLng" type="number" step="0.000001" /></label>
+            </div>
+            <small>Tip: when you are on campus, use “Set to my current location” for best accuracy.</small>
+            <button id="useCurrentLocation" class="ghost full">Set to my current location</button>
+          </article>
+          <article class="card form-card">
+            <h3>Reminder defaults</h3>
+            <label><input id="reminder2d" type="checkbox" /> 2 days before assignments</label>
+            <label><input id="reminder1d" type="checkbox" /> 1 day before assignments</label>
+            <label><input id="reminder30m" type="checkbox" /> 30 minutes before assignments</label>
+            <label><input id="class30m" type="checkbox" /> 30 minutes before class</label>
+            <label><input id="class10m" type="checkbox" /> 10 minutes before class</label>
+            <label class="check-row"><input id="notificationsPreference" type="checkbox" /> Allow reminder notifications</label>
+          </article>
+        </div>
+      </section>
+
+      <section id="tools" class="view">
+        <div class="tools-hero">
+          <div>
+            <p class="eyebrow"><span class="eyebrow-dot"></span> Student hub</p>
+            <h2>Everything you need, one calm workspace.</h2>
+            <p>Calculate quickly, verify your campus presence, and access StarzAccess without leaving RIGZA.</p>
+          </div>
+          <div class="tools-hero-orb">✦</div>
+        </div>
+        <div class="tools-layout">
+          <article class="card calculator-card">
+            <div class="card-header">
+              <h3>Campus calculator</h3>
+              <span class="badge blue">Quick math</span>
+            </div>
+            <output id="calculatorDisplay" class="calculator-display" aria-live="polite">0</output>
+            <div id="calculatorKeys" class="calculator-keys">
+              <button type="button" data-calc-action="clear">AC</button><button type="button" data-calc-value="/">÷</button><button type="button" data-calc-value="*">×</button><button type="button" data-calc-action="backspace">⌫</button>
+              <button type="button" data-calc-value="7">7</button><button type="button" data-calc-value="8">8</button><button type="button" data-calc-value="9">9</button><button type="button" data-calc-value="-">−</button>
+              <button type="button" data-calc-value="4">4</button><button type="button" data-calc-value="5">5</button><button type="button" data-calc-value="6">6</button><button type="button" data-calc-value="+">+</button>
+              <button type="button" data-calc-value="1">1</button><button type="button" data-calc-value="2">2</button><button type="button" data-calc-value="3">3</button><button class="equals" type="button" data-calc-action="equals">=</button>
+              <button class="zero" type="button" data-calc-value="0">0</button><button type="button" data-calc-value=".">.</button>
+            </div>
+          </article>
+          <article class="card portal-card">
+            <div class="card-header">
+              <h3>StarzAccess</h3>
+              <span class="badge green">Official portal</span>
+            </div>
+            <p class="meta">Open the StarzAccess portal in a secure new tab. RIGZA does not store your portal password.</p>
+            <a class="primary portal-link" href="https://starzaccess.net" target="_blank" rel="noopener noreferrer">Open starzaccess.net ↗</a>
+            <div class="biometric-box">
+              <strong>Biometric app unlock</strong>
+              <p class="meta">Use your device fingerprint, face unlock, or security key to protect this app on supported HTTPS devices.</p>
+              <button id="setupBiometric" class="ghost full" type="button">Set up biometric unlock</button>
+              <small id="biometricStatus">Not set up</small>
+              <button id="setupAppPassword" class="ghost full" type="button">Set app password</button>
+              <small id="passwordStatus">No app password set</small>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div class="dashboard-support">
+      <section class="contact-section" aria-label="Contact app support">
+        <div>
+          <p class="eyebrow"><span class="eyebrow-dot"></span> Need a hand?</p>
+          <h2>Contact Ricky for app support.</h2>
+          <p class="contact-copy">Having trouble with RIGZA, finding a feature, or reporting an issue? Send a message and include what happened, which device you are using, and a screenshot if possible.</p>
+        </div>
+        <div class="contact-actions">
+          <a class="contact-action whatsapp" href="https://wa.me/2310555112922" target="_blank" rel="noopener noreferrer">
+            <span class="contact-action-icon" aria-hidden="true">☏</span>
+            <span><strong>WhatsApp</strong><small>0555 112 922</small></span>
+          </a>
+          <a class="contact-action email" href="mailto:rickyageorge7@gmail.com?subject=RIGZA%20app%20support">
+            <span class="contact-action-icon" aria-hidden="true">@</span>
+            <span><strong>Email</strong><small>rickyageorge7@gmail.com</small></span>
+          </a>
+        </div>
+      </section>
+
+      <section class="creator-section" aria-label="About the creator and support">
+        <div class="creator-copy">
+          <img class="creator-photo" src="icons/my%20image%20.JPG" alt="Ricky A George" />
+          <p class="eyebrow"><span class="eyebrow-dot"></span> Built with purpose</p>
+          <h2>Made for the Starz student journey.</h2>
+          <p>RIGZA was created by <strong>Ricky A George</strong> to make campus life, class schedules, and consistency easier to manage.</p>
+          <p class="creator-note">If this app helps you, you can support the creator with a coffee.</p>
+        </div>
+        <div class="support-card">
+          <div class="support-heading">
+            <span class="support-icon">☕</span>
+            <div>
+              <strong>Buy Ricky a coffee</strong>
+              <span>Every contribution helps keep RIGZA growing.</span>
+            </div>
+          </div>
+          <div class="payment-row">
+            <div>
+              <span class="payment-label">Mobile Money</span>
+              <strong>0555 112 922</strong>
+            </div>
+            <button class="copy-payment" type="button" data-copy-number="0555112922">Copy</button>
+          </div>
+          <div class="payment-row">
+            <div>
+              <span class="payment-label">Orange Money</span>
+              <strong>0775 399 168</strong>
+            </div>
+            <button class="copy-payment" type="button" data-copy-number="0775399168">Copy</button>
+          </div>
+        </div>
+      </section>
+      </div>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <div class="mobile-nav-track">
+      <button class="nav-item active" data-view="dashboard">
+        <span class="nav-icon" aria-hidden="true">⌂</span><span>Home</span>
+      </button>
+      <button class="nav-item" data-view="schedule">
+        <span class="nav-icon" aria-hidden="true">▦</span><span>Schedule</span>
+      </button>
+      <button class="nav-item" data-view="assignments">
+        <span class="nav-icon" aria-hidden="true">✓</span><span>Tasks</span>
+      </button>
+      <button class="nav-item" data-view="progress">
+        <span class="nav-icon" aria-hidden="true">↗</span><span>Progress</span>
+      </button>
+      <button class="nav-item" data-view="tools">
+        <span class="nav-icon" aria-hidden="true">✦</span><span>Tools</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <span class="nav-icon" aria-hidden="true">⚙</span><span>Settings</span>
+      </button>
+    </div>
+  </nav>
+
+  <dialog id="classDialog">
+    <form method="dialog" class="modal-form" id="classForm">
+      <h3>Add / edit class</h3>
+      <input type="hidden" id="classId" />
+      <label>Course code<input id="courseCode" required placeholder="MATH 108" /></label>
+      <label>Course name<input id="courseName" required placeholder="Math for Decision-Making" /></label>
+      <label>Days<select id="courseDays" multiple required>
+        <option value="Mon">Monday</option><option value="Tue">Tuesday</option><option value="Wed">Wednesday</option>
+        <option value="Thu">Thursday</option><option value="Fri">Friday</option><option value="Sat">Saturday</option>
+      </select></label>
+      <div class="inline-fields"><label>Start<input id="startTime" type="time" required /></label><label>End<input id="endTime" type="time" required /></label></div>
+      <label>Room/building<input id="room" placeholder="LAB10-NC" /></label>
+      <div class="modal-actions"><button id="cancelClass" type="button" class="ghost">Cancel</button><button id="saveClass" value="default" class="primary">Save class</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="assignmentDialog">
+    <form method="dialog" class="modal-form" id="assignmentForm">
+      <h3>Add / edit assignment</h3>
+      <input type="hidden" id="assignmentId" />
+      <label>Title<input id="assignmentTitle" required placeholder="French homework" /></label>
+      <label>Course<select id="assignmentCourse" required></select></label>
+      <label>Due date/time<input id="assignmentDue" type="datetime-local" required /></label>
+      <label>Priority<select id="assignmentPriority"><option>High</option><option selected>Medium</option><option>Low</option></select></label>
+      <div class="modal-actions"><button id="cancelAssignment" type="button" class="ghost">Cancel</button><button id="saveAssignment" value="default" class="primary">Save assignment</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="passwordDialog">
+    <form method="dialog" class="modal-form" id="passwordForm">
+      <h3 id="passwordDialogTitle">Protect RIGZA</h3>
+      <p id="passwordDialogHint" class="meta">Create a local password to protect RIGZA on this device.</p>
+      <label id="newPasswordLabel">New password<input id="newAppPassword" type="password" minlength="6" autocomplete="new-password" required /></label>
+      <label id="confirmPasswordLabel">Confirm password<input id="confirmAppPassword" type="password" minlength="6" autocomplete="new-password" required /></label>
+      <label id="unlockPasswordLabel" hidden>Password<input id="unlockAppPassword" type="password" autocomplete="current-password" /></label>
+      <div class="modal-actions"><button id="cancelPassword" type="button" class="ghost">Cancel</button><button id="passwordSubmit" value="default" class="primary">Save password</button></div>
+    </form>
+  </dialog>
+
+  <div id="appLock" class="app-lock" hidden>
+    <div class="app-lock-card">
+      <div class="copilot-avatar"><img src="icons/my%20image%20.JPG" alt="Ricky A George" /></div>
+      <p class="eyebrow">Private student workspace</p>
+      <h2>Welcome back</h2>
+      <p>Unlock RIGZA to view your schedule, assignments, and check-in history.</p>
+      <input id="lockPassword" type="password" placeholder="App password" autocomplete="current-password" />
+      <button id="unlockApp" class="primary full" type="button">Unlock app</button>
+      <small id="lockStatus"></small>
+    </div>
+  </div>
+
+  <button id="copilotToggle" class="copilot-fab" type="button" aria-controls="copilotPanel" aria-expanded="false">
+    <img class="copilot-spark" src="icons/my%20image%20.JPG" alt="" />
+    <span>Ask Copilot</span>
+  </button>
+  <aside id="copilotPanel" class="copilot-panel" aria-label="Campus Copilot" hidden>
+    <div class="copilot-header">
+      <div class="copilot-avatar"><img src="icons/my%20image%20.JPG" alt="Ricky A George" /></div>
+      <div>
+        <strong>RIGZA Copilot</strong>
+        <span id="copilotStatus">Offline assistant ready</span>
+      </div>
+      <button id="copilotClose" class="icon-button" type="button" aria-label="Close Copilot">×</button>
+    </div>
+    <div id="copilotMessages" class="copilot-messages" aria-live="polite">
+      <div class="copilot-message bot">Hey! I can help with your classes, assignments, streak, or campus check-in. Ask anything local, or connect an online provider in Settings for broader questions.</div>
+    </div>
+    <div class="copilot-prompts">
+      <button type="button" data-copilot-prompt="What is my next class?">Next class</button>
+      <button type="button" data-copilot-prompt="What assignments are due soon?">Due soon</button>
+      <button type="button" data-copilot-prompt="How is my streak?">My streak</button>
+      <button type="button" data-copilot-prompt="Who created this page?">Creator</button>
+      <button type="button" data-copilot-prompt="What do I have tomorrow?">Tomorrow</button>
+      <button type="button" data-copilot-prompt="Help me with an assignment">Assignment help</button>
+    </div>
+    <form id="copilotForm" class="copilot-input">
+      <input id="copilotInput" autocomplete="off" placeholder="Ask a question or paste homework..." aria-label="Ask Campus Copilot" />
+      <button class="primary" type="submit" aria-label="Send message">↑</button>
+    </form>
+  </aside>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>
