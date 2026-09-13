@@ -589,6 +589,12 @@ async function unlockApp() {
     element.textContent = message;
     element.classList.toggle('error', isError);
   }
+  function authErrorMessage(error) {
+    const message = error?.message || 'Authentication failed. Please try again.';
+    return /rate limit|rate_limit|email.*limit|too many requests/i.test(message)
+      ? 'Supabase email sending is temporarily rate-limited. Please wait and try again later, or use an account that was already created.'
+      : message;
+  }
   function setAuthMode(signUp) {
     document.getElementById('authTitle').textContent = signUp ? 'Create your RIGZA account' : 'Sign in to RIGZA';
     document.getElementById('authEyebrow').textContent = signUp ? 'Start your student workspace' : 'Private student workspace';
@@ -643,7 +649,7 @@ async function unlockApp() {
     const password = document.getElementById('authPassword').value;
     if (document.getElementById('newPasswordLabel').hidden === false) {
       const { error } = await supabaseClient.auth.updateUser({ password: document.getElementById('newPassword').value });
-      if (error) return setAuthMessage(error.message, true);
+      if (error) return setAuthMessage(authErrorMessage(error), true);
       document.getElementById('authForm').reset();
       setAuthMode(false);
       return setAuthMessage('Password updated. You can continue using RIGZA.');
@@ -652,7 +658,7 @@ async function unlockApp() {
     const result = signUp
       ? await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: document.getElementById('authName').value.trim() } } })
       : await supabaseClient.auth.signInWithPassword({ email, password });
-    if (result.error) return setAuthMessage(result.error.message, true);
+    if (result.error) return setAuthMessage(authErrorMessage(result.error), true);
     document.getElementById('authForm').reset();
     if (signUp && !result.data.session) return setAuthMessage('Account created. Check your email to confirm it, then sign in.');
   }
@@ -661,7 +667,7 @@ async function unlockApp() {
     const email = document.getElementById('authEmail').value.trim();
     if (!email) return setAuthMessage('Enter your email address first.', true);
     const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
-    setAuthMessage(error ? error.message : 'Password reset instructions sent. Check your email.');
+    setAuthMessage(error ? authErrorMessage(error) : 'Password reset instructions sent. Check your email.', Boolean(error));
   }
   async function initializeAuthentication() {
     if (!supabaseClient) {
@@ -677,7 +683,9 @@ async function unlockApp() {
           return;
         }
       if (!currentUser) {
+        state = structuredClone(DEFAULT_STATE);
         showAuthGate(true);
+        render();
         return;
       }
       try {
@@ -710,7 +718,14 @@ async function signOutAccount() {
   if (!supabaseClient) return;
   const { error } = await supabaseClient.auth.signOut();
   if (error) return showToast(`Could not sign out: ${error.message}`);
+  currentUser = null;
   state.profile = { name: '', email: '' };
+  state.classes = [];
+  state.assignments = [];
+  state.checkins = {};
+  showAuthGate(true);
+  render();
+  showToast('Signed out.');
 }
 
 async function checkCampusLocation() {
