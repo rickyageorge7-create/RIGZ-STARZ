@@ -50,9 +50,32 @@ function mergeState(saved) {
   return { ...structuredClone(DEFAULT_STATE), ...saved, settings: { ...DEFAULT_STATE.settings, ...saved?.settings, reminders: { ...DEFAULT_STATE.settings.reminders, ...(saved?.settings?.reminders || {}) }, appearance: { ...DEFAULT_STATE.settings.appearance, ...(saved?.settings?.appearance || {}) }, copilot: { ...DEFAULT_STATE.settings.copilot, ...(saved?.settings?.copilot || {}) } }, profile: { ...DEFAULT_STATE.profile, ...(saved?.profile || {}) } };
 }
 async function saveState() {
-  if (!supabaseClient || !currentUser) return;
-  const { error } = await supabaseClient.from('rigza_workspaces').upsert({ user_id: currentUser.id, profile: state.profile, state, updated_at: new Date().toISOString() });
-  if (error) showToast(`Could not save workspace: ${error.message}`);
+  if (!supabaseClient) {
+    showToast('Supabase is not configured.');
+    return false;
+  }
+
+  if (!currentUser) {
+    showToast('You are not signed in. Your changes cannot be saved.');
+    return false;
+  }
+
+  const { error } = await supabaseClient
+    .from('rigza_workspaces')
+    .upsert({
+      user_id: currentUser.id,
+      profile: state.profile,
+      state,
+      updated_at: new Date().toISOString()
+    });
+
+  if (error) {
+    console.error('RIGZA saveState error:', error);
+    showToast(`Could not save: ${error.message}`);
+    return false;
+  }
+
+  return true;
 }
 async function loadCloudState(user) {
   const { data, error } = await supabaseClient.from('rigza_workspaces').select('profile,state').eq('user_id', user.id).maybeSingle();
