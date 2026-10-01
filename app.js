@@ -62,11 +62,34 @@ function copilotKeyStorageKey(userId = currentUser?.id) {
   return userId ? `rigza-copilot-api-key:${userId}` : null;
 }
 async function saveState() {
-  if (!supabaseClient || !currentUser) return;
+  if (!supabaseClient) {
+    showToast('Supabase is not configured.');
+    return false;
+  }
+
+  if (!currentUser) {
+    showToast('You are not signed in. Your changes cannot be saved.');
+    return false;
+  }
+
   const cloudState = structuredClone(state);
   cloudState.settings.copilot.apiKey = '';
-  const { error } = await supabaseClient.from('rigza_workspaces').upsert({ user_id: currentUser.id, profile: state.profile, state: cloudState, updated_at: new Date().toISOString() });
-  if (error) showToast(`Could not save workspace: ${error.message}`);
+  const { error } = await supabaseClient
+    .from('rigza_workspaces')
+    .upsert({
+      user_id: currentUser.id,
+      profile: state.profile,
+      state: cloudState,
+      updated_at: new Date().toISOString()
+    });
+
+  if (error) {
+    console.error('RIGZA saveState error:', error);
+    showToast(`Could not save: ${error.message}`);
+    return false;
+  }
+
+  return true;
 }
 async function loadCloudState(user) {
   const { data, error } = await supabaseClient.from('rigza_workspaces').select('profile,state').eq('user_id', user.id).maybeSingle();
