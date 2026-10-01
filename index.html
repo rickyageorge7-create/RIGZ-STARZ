@@ -22,7 +22,7 @@
         <label id="authNameLabel" hidden>Full name<input id="authName" autocomplete="name" /></label>
         <label>Email address<input id="authEmail" type="email" autocomplete="email" required /></label>
         <label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required /></label>
-        <label id="newPasswordLabel" hidden>New password<input id="newPassword" type="password" autocomplete="new-password" minlength="6" /></label>
+        <label id="authNewPasswordLabel" hidden>New password<input id="newPassword" type="password" autocomplete="new-password" minlength="6" /></label>
         <button id="authSubmit" class="primary full" type="submit">Sign in</button>
       </form>
       <p id="authMessage" class="auth-message" role="status"></p>
@@ -57,7 +57,7 @@
       </nav>
       <div class="sidebar-card">
         <span class="mini-label">Campus radius</span>
-        <strong>300 meters</strong>
+        <strong id="campusRadiusDisplay">300 meters</strong>
         <small>Daily checkmark only before first class.</small>
       </div>
     </aside>
@@ -158,8 +158,15 @@
       <section id="progress" class="view">
         <div class="toolbar">
           <h2>Progress & consistency</h2>
-          <button id="markTestDay" class="ghost">Demo: mark today</button>
+          <div class="toolbar-actions">
+            <button id="openAttendanceScanner" class="primary" type="button" hidden>Instructor attendance</button>
+            <button id="markTestDay" class="ghost">Demo: mark today</button>
+          </div>
         </div>
+        <div class="grid three stats-row">
+          <article class="stat"><span>GPA (4.0 scale)</span><strong id="gpaValue">—</strong></article>
+        </div>
+        <p class="meta">Calculated from completed, graded assignments, averaged within each class and weighted by class credits. Percentage bands: A 90–100, B 80–89, C 70–79, D 60–69, F below 60.</p>
         <div class="grid two">
           <article class="card">
             <h3>Campus check-ins</h3>
@@ -171,10 +178,16 @@
               <li>✅ appears once per day.</li>
               <li>It counts only on Mon–Sat.</li>
               <li>On class days, you must arrive before your first class.</li>
-              <li>Your campus zone is 300m around Starz University.</li>
+              <li id="campusRadiusRule">Your campus zone is 300m around Starz University.</li>
             </ul>
           </article>
         </div>
+        <article class="card attendance-card">
+          <h3>Per-course attendance</h3>
+          <p class="meta">Counts and percentages use class meetings started by approved instructors in RIGZA.</p>
+          <p id="attendanceMessage" class="meta" role="status">Loading attendance…</p>
+          <div id="courseAttendance" class="attendance-list"></div>
+        </article>
       </section>
 
       <section id="settings" class="view">
@@ -189,9 +202,33 @@
             <div id="accountSummary" class="account-summary" hidden></div>
             <div id="accountFormFields">
               <label>Full name<input id="profileName" autocomplete="name" placeholder="Your name" /></label>
-              <label>Email address<input id="profileEmail" type="email" autocomplete="email" placeholder="you@example.com" /></label>
+              <label>Email address<input id="profileEmail" type="email" autocomplete="email" readonly /></label>
+              <label>Program or major<input id="profileProgram" autocomplete="organization-title" placeholder="Your program or major" /></label>
+              <label>Academic level<input id="profileAcademicLevel" placeholder="Your year or level" /></label>
               <button id="createAccount" class="primary full" type="button">Update profile</button>
             </div>
+            <article id="studentIdCard" class="student-id-card" aria-label="RIGZA digital student ID" hidden>
+              <div class="student-id-heading">
+                <strong>STARZ UNIVERSITY</strong>
+                <span>RIGZA DIGITAL STUDENT ID</span>
+              </div>
+              <div class="student-id-person">
+                <div class="student-id-avatar" aria-hidden="true">R</div>
+                <div>
+                  <strong id="studentIdName">Student</strong>
+                  <span id="studentIdEmail"></span>
+                </div>
+              </div>
+              <div class="student-id-details">
+                <div><span>Student ID</span><strong id="studentIdValue"></strong></div>
+                <div><span>Program</span><strong id="studentIdProgram">Not set</strong></div>
+                <div><span>Academic level</span><strong id="studentIdLevel">Not set</strong></div>
+              </div>
+              <div class="student-id-qr">
+                <div id="studentQrCode" aria-label="QR code with your RIGZA Student ID"></div>
+                <p>Show this code to an approved instructor when they start your class attendance session.</p>
+              </div>
+            </article>
             <button id="signOutAccount" class="ghost full" type="button" hidden>Sign out on this device</button>
           </article>
           <article class="card form-card">
@@ -227,6 +264,7 @@
             <h3>Campus geofence</h3>
             <label>School name<input id="schoolName" /></label>
             <label>Campus plus code / address<textarea id="campusAddress"></textarea></label>
+            <label>Campus radius (meters)<input id="radiusMeters" type="number" min="25" max="10000" step="25" required /></label>
             <div class="inline-fields">
               <label>Latitude<input id="campusLat" type="number" step="0.000001" /></label>
               <label>Longitude<input id="campusLng" type="number" step="0.000001" /></label>
@@ -278,10 +316,6 @@
             <p class="meta">Open the StarzAccess portal in a secure new tab. RIGZA does not store your portal password.</p>
             <a class="primary portal-link" href="https://starzaccess.net" target="_blank" rel="noopener noreferrer">Open starzaccess.net ↗</a>
             <div class="biometric-box">
-              <strong>Biometric app unlock</strong>
-              <p class="meta">Use your device fingerprint, face unlock, or security key to protect this app on supported HTTPS devices.</p>
-              <button id="setupBiometric" class="ghost full" type="button">Set up biometric unlock</button>
-              <small id="biometricStatus">Not set up</small>
               <button id="setupAppPassword" class="ghost full" type="button">Set app password</button>
               <small id="passwordStatus">No app password set</small>
             </div>
@@ -340,6 +374,10 @@
           </div>
         </div>
       </section>
+      <details class="builder-credit">
+        <summary>Built by Ricky</summary>
+        <p>RIGZA was made by Ricky A George for Starz University students. <a href="https://github.com/rickyageorge7-create/RIGZ-STARZ" target="_blank" rel="noopener noreferrer">View the RIGZA project on GitHub</a>.</p>
+      </details>
       </div>
     </main>
   </div>
@@ -373,6 +411,7 @@
       <input type="hidden" id="classId" />
       <label>Course code<input id="courseCode" required placeholder="MATH 108" /></label>
       <label>Course name<input id="courseName" required placeholder="Math for Decision-Making" /></label>
+      <label>Credits<input id="courseCredits" type="number" min="0" max="30" step="0.5" required /></label>
       <label>Days<select id="courseDays" multiple required>
         <option value="Mon">Monday</option><option value="Tue">Tuesday</option><option value="Wed">Wednesday</option>
         <option value="Thu">Thursday</option><option value="Fri">Friday</option><option value="Sat">Saturday</option>
@@ -391,6 +430,7 @@
       <label>Course<select id="assignmentCourse" required></select></label>
       <label>Due date/time<input id="assignmentDue" type="datetime-local" required /></label>
       <label>Priority<select id="assignmentPriority"><option>High</option><option selected>Medium</option><option>Low</option></select></label>
+      <label>Grade (%)<input id="assignmentGrade" type="number" min="0" max="100" step="0.01" placeholder="Optional; enter after grading" /></label>
       <div class="modal-actions"><button id="cancelAssignment" type="button" class="ghost">Cancel</button><button id="saveAssignment" value="default" class="primary">Save assignment</button></div>
     </form>
   </dialog>
@@ -403,6 +443,24 @@
       <label id="confirmPasswordLabel">Confirm password<input id="confirmAppPassword" type="password" minlength="6" autocomplete="new-password" required /></label>
       <label id="unlockPasswordLabel" hidden>Password<input id="unlockAppPassword" type="password" autocomplete="current-password" /></label>
       <div class="modal-actions"><button id="cancelPassword" type="button" class="ghost">Cancel</button><button id="passwordSubmit" value="default" class="primary">Save password</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="attendanceDialog">
+    <form method="dialog" class="modal-form attendance-dialog-form">
+      <div class="attendance-dialog-heading">
+        <div>
+          <p class="eyebrow">Approved instructor</p>
+          <h2>Class attendance</h2>
+        </div>
+        <button id="closeAttendanceDialog" class="icon-button" type="button" aria-label="Close attendance scanner">×</button>
+      </div>
+      <label>Course
+        <select id="attendanceCourse" required></select>
+      </label>
+      <button id="startAttendanceSession" class="primary full" type="button">Start today’s session</button>
+      <p id="instructorAttendanceMessage" class="meta" role="status">Start the session before scanning student IDs.</p>
+      <div id="attendanceReader" class="attendance-reader" hidden></div>
     </form>
   </dialog>
 
@@ -450,7 +508,9 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="supabase-config.js"></script>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

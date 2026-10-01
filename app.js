@@ -16,7 +16,7 @@ const DEFAULT_STATE = {
     notificationsEnabled: true,
     copilot: { mode: 'auto', endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini', apiKey: '' }
   },
-  profile: { name: '', email: '' },
+  profile: { name: '', email: '', studentId: '', program: '', academicLevel: '' },
   classes: [],
   assignments: [],
   checkins: {}
@@ -31,6 +31,12 @@ let state = structuredClone(DEFAULT_STATE);
 let currentUser = null;
 let deferredInstallPrompt = null;
 let calculatorExpression = '';
+let currentInstructorCourses = [];
+let courseAttendanceSummary = [];
+let attendanceServiceMessage = '';
+let attendanceScanner = null;
+let activeAttendanceSessionId = null;
+let attendanceScanBusy = false;
 
 function nextDateTime(days, time) {
   const d = new Date();
@@ -46,12 +52,20 @@ function toLocalInputValue(date) {
 function loadState() {
   return structuredClone(DEFAULT_STATE);
 }
+function createStudentId() {
+  return `RIGZA-${crypto.randomUUID().toUpperCase()}`;
+}
 function mergeState(saved) {
   return { ...structuredClone(DEFAULT_STATE), ...saved, settings: { ...DEFAULT_STATE.settings, ...saved?.settings, reminders: { ...DEFAULT_STATE.settings.reminders, ...(saved?.settings?.reminders || {}) }, appearance: { ...DEFAULT_STATE.settings.appearance, ...(saved?.settings?.appearance || {}) }, copilot: { ...DEFAULT_STATE.settings.copilot, ...(saved?.settings?.copilot || {}) } }, profile: { ...DEFAULT_STATE.profile, ...(saved?.profile || {}) } };
 }
+function copilotKeyStorageKey(userId = currentUser?.id) {
+  return userId ? `rigza-copilot-api-key:${userId}` : null;
+}
 async function saveState() {
   if (!supabaseClient || !currentUser) return;
-  const { error } = await supabaseClient.from('rigza_workspaces').upsert({ user_id: currentUser.id, profile: state.profile, state, updated_at: new Date().toISOString() });
+  const cloudState = structuredClone(state);
+  cloudState.settings.copilot.apiKey = '';
+  const { error } = await supabaseClient.from('rigza_workspaces').upsert({ user_id: currentUser.id, profile: state.profile, state: cloudState, updated_at: new Date().toISOString() });
   if (error) showToast(`Could not save workspace: ${error.message}`);
 }
 async function loadCloudState(user) {
@@ -60,9 +74,22 @@ async function loadCloudState(user) {
   if (data) state = mergeState({ ...data.state, profile: data.profile });
   else {
     state = structuredClone(DEFAULT_STATE);
-    state.profile = { name: user.user_metadata?.full_name || '', email: user.email || '' };
-    await saveState();
+    state.profile = { ...state.profile, name: user.user_metadata?.full_name || '', email: user.email || '' };
   }
+  state.profile = {
+    ...DEFAULT_STATE.profile,
+    ...state.profile,
+    name: state.profile.name || user.user_metadata?.full_name || '',
+    email: user.email || state.profile.email,
+    studentId: state.profile.studentId || createStudentId()
+  };
+  if (!data || !data.profile?.studentId) await saveState();
+  const keyStorageKey = copilotKeyStorageKey(user.id);
+  const cloudApiKey = state.settings.copilot.apiKey;
+  const deviceApiKey = keyStorageKey ? localStorage.getItem(keyStorageKey) : null;
+  state.settings.copilot.apiKey = deviceApiKey ?? cloudApiKey;
+  if (keyStorageKey && cloudApiKey && deviceApiKey === null) localStorage.setItem(keyStorageKey, cloudApiKey);
+  if (data?.state?.settings?.copilot?.apiKey) await saveState();
 }
 function fmtTime(time) {
   const [h, m] = time.split(':').map(Number);
@@ -145,7 +172,7 @@ function renderDashboard() {
     todayDetail.textContent = 'The visit is saved, but it does not count as an on-time daily checkmark.';
   } else if (first) {
     todayStatus.textContent = `Get to campus before ${fmtTime(first.start)}`;
-    todayDetail.textContent = `First class: ${first.code} — ${first.name} in ${first.room}. Enter the 300m campus zone before class for your daily ✅.`;
+    todayDetail.textContent = `First class: ${first.code} — ${first.name} in ${first.room}. Enter the ${state.settings.radiusMeters}m campus zone before class for your daily ✅.`;
   } else if (!state.classes.length && !state.assignments.length) {
     todayStatus.textContent = 'Welcome to RIGZA 👋';
     todayDetail.textContent = 'Let’s get your student workspace ready. Add your first class or assignment to begin.';
@@ -226,7 +253,8 @@ function renderSchedule() {
 function renderAssignmentItem(a) {
   const due = new Date(a.due);
   const late = !a.done && due < new Date();
-  return `<div class="item"><div class="item-row"><div><strong>${a.done ? '✅ ' : ''}${a.title}</strong><div class="meta">${a.courseCode} · Due ${fmtDate(a.due)} · ${a.priority}</div></div><span class="badge ${a.done ? 'green' : late ? 'red' : 'orange'}">${a.done ? 'Done' : late ? 'Late' : 'Open'}</span></div><div class="actions"><button onclick="toggleAssignment('${a.id}')">${a.done ? 'Mark open' : 'Mark done'}</button><button onclick="editAssignment('${a.id}')">Edit</button><button onclick="deleteAssignment('${a.id}')">Delete</button></div></div>`;
+  const gradeSummary = a.grade === null || a.grade === undefined ? '' : ` · Grade ${a.grade}%`;
+  return `<div class="item"><div class="item-row"><div><strong>${a.done ? '✅ ' : ''}${a.title}</strong><div class="meta">${a.courseCode} · Due ${fmtDate(a.due)} · ${a.priority}${gradeSummary}</div></div><span class="badge ${a.done ? 'green' : late ? 'red' : 'orange'}">${a.done ? 'Done' : late ? 'Late' : 'Open'}</span></div><div class="actions"><button onclick="toggleAssignment('${a.id}')">${a.done ? 'Mark open' : 'Mark done'}</button><button onclick="editAssignment('${a.id}')">Edit</button><button onclick="deleteAssignment('${a.id}')">Delete</button></div></div>`;
 }
 function renderAssignments() {
   const sorted = [...state.assignments].sort((a,b) => new Date(a.due)-new Date(b.due));
@@ -252,6 +280,32 @@ function computeStats() {
   const done = state.assignments.filter(a => a.done).length;
   return { streak, consistency: counted ? Math.round((earned/counted)*100) : 0, assignmentRate: state.assignments.length ? Math.round((done/state.assignments.length)*100) : 0 };
 }
+function gradePoints(grade) {
+  if (grade >= 90) return 4;
+  if (grade >= 80) return 3;
+  if (grade >= 70) return 2;
+  if (grade >= 60) return 1;
+  return 0;
+}
+function computeGpa() {
+  const gradedAssignments = state.assignments.filter(a => a.done && a.grade !== null && a.grade !== undefined && a.grade !== '');
+  const coursePoints = new Map();
+  for (const assignment of gradedAssignments) {
+    const points = coursePoints.get(assignment.courseCode) || [];
+    points.push(gradePoints(Number(assignment.grade)));
+    coursePoints.set(assignment.courseCode, points);
+  }
+  let weightedPoints = 0;
+  let includedCredits = 0;
+  for (const cls of state.classes) {
+    const points = coursePoints.get(cls.code);
+    const credits = Number(cls.credits) || 0;
+    if (!points?.length || credits <= 0) continue;
+    weightedPoints += points.reduce((sum, value) => sum + value, 0) / points.length * credits;
+    includedCredits += credits;
+  }
+  return includedCredits ? weightedPoints / includedCredits : null;
+}
 function renderProgress() {
   const today = new Date();
   const cells = [];
@@ -262,10 +316,42 @@ function renderProgress() {
     cells.push(`<div class="day-cell ${checked ? 'checked' : ''} ${key === todayKey(today) ? 'today' : ''}"><span>${DAY_NAMES[d.getDay()]}</span><strong>${d.getDate()}</strong><span>${checked ? '✅' : isSchoolDay(d) ? '—' : 'off'}</span></div>`);
   }
   document.getElementById('calendarGrid').innerHTML = cells.join('');
+  document.getElementById('campusRadiusRule').textContent = `Your campus zone is ${state.settings.radiusMeters}m around Starz University.`;
+  const gpa = computeGpa();
+  document.getElementById('gpaValue').textContent = gpa === null ? '—' : gpa.toFixed(2);
+  document.getElementById('openAttendanceScanner').hidden = !currentInstructorCourses.length;
+  const attendanceMessage = document.getElementById('attendanceMessage');
+  const attendanceList = document.getElementById('courseAttendance');
+  attendanceList.replaceChildren();
+  if (!currentUser) {
+    attendanceMessage.textContent = 'Sign in to see course attendance.';
+  } else if (attendanceServiceMessage) {
+    attendanceMessage.textContent = attendanceServiceMessage;
+  } else if (!state.classes.length) {
+    attendanceMessage.textContent = 'Add a class to see its attendance here.';
+  } else {
+    attendanceMessage.textContent = courseAttendanceSummary.some(summary => summary.total > 0)
+      ? 'Attendance is based on sessions started by approved instructors.'
+      : 'No class sessions have been recorded for your courses yet.';
+    for (const summary of courseAttendanceSummary) {
+      const row = document.createElement('div');
+      row.className = 'attendance-row';
+      const course = document.createElement('strong');
+      course.textContent = summary.courseCode;
+      const count = document.createElement('span');
+      count.textContent = `${summary.attended} of ${summary.total} meeting${summary.total === 1 ? '' : 's'}`;
+      const percentage = document.createElement('b');
+      percentage.textContent = summary.total ? `${Math.round(summary.attended / summary.total * 100)}%` : '—';
+      row.append(course, count, percentage);
+      attendanceList.append(row);
+    }
+  }
 }
 function renderSettings() {
   schoolName.value = state.settings.schoolName;
   campusAddress.value = state.settings.campusAddress;
+  radiusMeters.value = state.settings.radiusMeters;
+  document.getElementById('campusRadiusDisplay').textContent = `${state.settings.radiusMeters} meters`;
   campusLat.value = state.settings.campusLat;
   campusLng.value = state.settings.campusLng;
   reminder2d.checked = state.settings.reminders.assignment2d;
@@ -284,12 +370,142 @@ function renderSettings() {
   copilotApiKey.value = state.settings.copilot.apiKey;
   setCopilotStatus(state.settings.copilot.mode === 'offline' ? 'Offline assistant ready' : copilotOnlineConfigured() ? 'Online assistant available' : 'Offline assistant ready', copilotOnlineConfigured() && state.settings.copilot.mode !== 'offline' ? 'is-online' : '');
   profileName.value = state.profile.name;
-  profileEmail.value = state.profile.email;
+  profileEmail.value = currentUser?.email || state.profile.email;
+  profileProgram.value = state.profile.program;
+  profileAcademicLevel.value = state.profile.academicLevel;
   const hasAccount = Boolean(currentUser);
-  accountFormFields.hidden = hasAccount;
-  signOutAccount.hidden = !hasAccount;
+  accountFormFields.hidden = !hasAccount;
+  document.getElementById('signOutAccount').hidden = !hasAccount;
   accountSummary.hidden = !hasAccount;
-  accountSummary.textContent = hasAccount ? `${state.profile.name || 'Student'} · ${state.profile.email || 'Local account'}` : '';
+  accountSummary.textContent = hasAccount ? `${state.profile.name || 'Student'} · ${currentUser.email} · Account active` : '';
+  studentIdCard.hidden = !hasAccount;
+  studentIdName.textContent = state.profile.name || 'Student';
+  studentIdEmail.textContent = currentUser?.email || '';
+  studentIdValue.textContent = state.profile.studentId;
+  studentIdProgram.textContent = state.profile.program || 'Not set';
+  studentIdLevel.textContent = state.profile.academicLevel || 'Not set';
+  const studentQrCode = document.getElementById('studentQrCode');
+  studentQrCode.replaceChildren();
+  if (hasAccount && state.profile.studentId && window.QRCode) {
+    new QRCode(studentQrCode, {
+      text: state.profile.studentId,
+      width: 144,
+      height: 144,
+      colorDark: '#17243a',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } else if (hasAccount) {
+    studentQrCode.textContent = 'QR code unavailable. Check your connection and reload.';
+  }
+}
+
+async function invokeAttendance(body) {
+  const { data, error } = await supabaseClient.functions.invoke('rigza-attendance', { body });
+  if (error) throw new Error(error.message || 'Attendance service is unavailable.');
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+async function loadAttendanceData() {
+  if (!currentUser || !supabaseClient) return;
+  attendanceServiceMessage = '';
+  try {
+    const data = await invokeAttendance({ action: 'load-data' });
+    currentInstructorCourses = data.courses || [];
+    courseAttendanceSummary = data.summaries || [];
+  } catch (error) {
+    currentInstructorCourses = [];
+    courseAttendanceSummary = [];
+    attendanceServiceMessage = `Attendance service is not ready or reachable (${error.message}). Complete the QR attendance setup in README.md.`;
+  }
+  renderProgress();
+}
+
+async function openAttendanceDialog() {
+  const select = document.getElementById('attendanceCourse');
+  select.replaceChildren(...currentInstructorCourses.map(code => {
+    const option = document.createElement('option');
+    option.value = code;
+    option.textContent = code;
+    return option;
+  }));
+  document.getElementById('instructorAttendanceMessage').textContent = 'Start the session before scanning student IDs.';
+  document.getElementById('attendanceReader').hidden = true;
+  activeAttendanceSessionId = null;
+  document.getElementById('attendanceDialog').showModal();
+}
+
+async function startAttendanceSession() {
+  const courseCode = document.getElementById('attendanceCourse').value;
+  const message = document.getElementById('instructorAttendanceMessage');
+  const startButton = document.getElementById('startAttendanceSession');
+  if (!courseCode) return;
+  startButton.disabled = true;
+  message.textContent = 'Starting today’s class session…';
+  try {
+    const result = await invokeAttendance({ action: 'start-session', courseCode });
+    activeAttendanceSessionId = result.sessionId;
+    message.textContent = `${courseCode} session started. Ask each student to show their RIGZA ID QR code.`;
+    await startAttendanceScanner();
+  } catch (error) {
+    message.textContent = `Could not start the session: ${error.message}`;
+  } finally {
+    startButton.disabled = false;
+  }
+}
+
+async function startAttendanceScanner() {
+  const reader = document.getElementById('attendanceReader');
+  const message = document.getElementById('instructorAttendanceMessage');
+  if (!window.Html5Qrcode) {
+    message.textContent = 'The QR scanner did not load. Check your connection and reload.';
+    return;
+  }
+  reader.hidden = false;
+  attendanceScanner = new Html5Qrcode('attendanceReader');
+  try {
+    await attendanceScanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      async decodedText => {
+        if (attendanceScanBusy || !activeAttendanceSessionId) return;
+        attendanceScanBusy = true;
+        try {
+          const result = await invokeAttendance({
+            action: 'record-scan',
+            sessionId: activeAttendanceSessionId,
+            studentId: decodedText
+          });
+          message.textContent = result.alreadyRecorded
+            ? `${result.studentName} is already marked present for ${result.courseCode}.`
+            : `${result.studentName} marked present for ${result.courseCode}.`;
+          await loadAttendanceData();
+        } catch (error) {
+          message.textContent = `Could not record this scan: ${error.message}`;
+        } finally {
+          attendanceScanBusy = false;
+        }
+      },
+      () => {}
+    );
+  } catch (error) {
+    reader.hidden = true;
+    message.textContent = `Could not start the camera: ${error.message}. Allow camera access and use RIGZA over HTTPS or localhost.`;
+    attendanceScanner = null;
+  }
+}
+
+async function stopAttendanceScanner() {
+  if (!attendanceScanner) return;
+  const scanner = attendanceScanner;
+  attendanceScanner = null;
+  try {
+    if (scanner.isScanning) await scanner.stop();
+    await scanner.clear();
+  } catch (error) {
+    console.error('Could not stop the RIGZA attendance camera:', error);
+  }
 }
 function hydrateCourseOptions() {
   const sel = document.getElementById('assignmentCourse');
@@ -516,31 +732,6 @@ function calculateExpression() {
   }
   updateCalculator();
 }
-async function setupBiometric() {
-  const status = document.getElementById('biometricStatus');
-  if (!window.PublicKeyCredential || !navigator.credentials) {
-    status.textContent = 'Biometric unlock is not supported in this browser.';
-    return showToast('Use a supported HTTPS browser for biometric unlock.');
-  }
-  try {
-    const credential = await navigator.credentials.create({ publicKey: {
-      challenge: crypto.getRandomValues(new Uint8Array(32)),
-      rp: { name: 'RIGZA' },
-      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'rigza-user', displayName: 'RIGZA student' },
-      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
-      timeout: 60000,
-      attestation: 'none'
-    }});
-    if (!credential) throw new Error('No credential created');
-    localStorage.setItem('campuscheck-biometric-ready', '1');
-    status.textContent = 'Biometric unlock is ready on this device.';
-    showToast('Biometric unlock set up.');
-  } catch (error) {
-    status.textContent = 'Setup cancelled or unavailable on this device.';
-    showToast('Biometric setup was not completed.');
-  }
-}
 async function hashAppPassword(password, salt) {
   const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' }, material, 256);
@@ -605,7 +796,7 @@ async function unlockApp() {
     document.getElementById('authModeToggle').textContent = signUp ? 'Back to sign in' : 'Create an account';
     document.getElementById('authModeToggle').hidden = false;
     document.getElementById('forgotPassword').hidden = signUp;
-    document.getElementById('newPasswordLabel').hidden = true;
+    document.getElementById('authNewPasswordLabel').hidden = true;
     document.getElementById('newPassword').required = false;
     document.getElementById('authPassword').hidden = false;
     document.getElementById('authPassword').required = true;
@@ -618,7 +809,7 @@ async function unlockApp() {
     document.getElementById('authHint').textContent = 'Set a new password for your RIGZA account.';
     document.getElementById('authPassword').hidden = true;
     document.getElementById('authPassword').required = false;
-    document.getElementById('newPasswordLabel').hidden = false;
+    document.getElementById('authNewPasswordLabel').hidden = false;
     document.getElementById('newPassword').required = true;
     document.getElementById('authSubmit').textContent = 'Update password';
     document.getElementById('authModeToggle').hidden = true;
@@ -647,7 +838,7 @@ async function unlockApp() {
     const signUp = !document.getElementById('authNameLabel').hidden;
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
-    if (document.getElementById('newPasswordLabel').hidden === false) {
+    if (document.getElementById('authNewPasswordLabel').hidden === false) {
       const { error } = await supabaseClient.auth.updateUser({ password: document.getElementById('newPassword').value });
       if (error) return setAuthMessage(authErrorMessage(error), true);
       document.getElementById('authForm').reset();
@@ -683,6 +874,11 @@ async function unlockApp() {
           return;
         }
       if (!currentUser) {
+        currentInstructorCourses = [];
+        courseAttendanceSummary = [];
+        attendanceServiceMessage = '';
+        activeAttendanceSessionId = null;
+        stopAttendanceScanner();
         state = structuredClone(DEFAULT_STATE);
         showAuthGate(true);
         render();
@@ -692,6 +888,7 @@ async function unlockApp() {
         await loadCloudState(currentUser);
         showAuthGate(false);
         render();
+        await loadAttendanceData();
         scheduleReminderChecks();
       } catch (error) {
         currentUser = null;
@@ -709,7 +906,13 @@ function lockAppIfConfigured() {
 async function updateProfile() {
   const name = profileName.value.trim();
   if (!name) return showToast('Enter your name.');
-  state.profile = { name, email: currentUser.email || profileEmail.value.trim() };
+  state.profile = {
+    ...state.profile,
+    name,
+    email: currentUser.email,
+    program: profileProgram.value.trim(),
+    academicLevel: profileAcademicLevel.value.trim()
+  };
   await saveState();
   render();
   showToast('Profile updated.');
@@ -719,10 +922,12 @@ async function signOutAccount() {
   const { error } = await supabaseClient.auth.signOut();
   if (error) return showToast(`Could not sign out: ${error.message}`);
   currentUser = null;
-  state.profile = { name: '', email: '' };
-  state.classes = [];
-  state.assignments = [];
-  state.checkins = {};
+  currentInstructorCourses = [];
+  courseAttendanceSummary = [];
+  attendanceServiceMessage = '';
+  activeAttendanceSessionId = null;
+  await stopAttendanceScanner();
+  state = structuredClone(DEFAULT_STATE);
   showAuthGate(true);
   render();
   showToast('Signed out.');
@@ -744,7 +949,7 @@ async function checkCampusLocation() {
   }, err => showToast(`Location error: ${err.message}`), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
 }
 function openClassDialog(cls = null) {
-  classForm.reset(); classId.value = cls?.id || ''; courseCode.value = cls?.code || ''; courseName.value = cls?.name || ''; startTime.value = cls?.start || '08:00'; endTime.value = cls?.end || '09:00'; room.value = cls?.room || '';
+  classForm.reset(); classId.value = cls?.id || ''; courseCode.value = cls?.code || ''; courseName.value = cls?.name || ''; courseCredits.value = cls?.credits ?? 0; startTime.value = cls?.start || '08:00'; endTime.value = cls?.end || '09:00'; room.value = cls?.room || '';
   [...courseDays.options].forEach(o => o.selected = cls?.days?.includes(o.value) || false);
   classDialog.showModal();
 }
@@ -754,19 +959,20 @@ function saveClassFromForm(e) {
   e.preventDefault();
   const days = [...courseDays.selectedOptions].map(o => o.value).sort((a, b) => DAY_ORDER[a] - DAY_ORDER[b]);
   if (!days.length) return showToast('Pick at least one day.');
-  const cls = { id: classId.value || crypto.randomUUID(), code: courseCode.value.trim(), name: courseName.value.trim(), days, start: startTime.value, end: endTime.value, room: room.value.trim() || 'TBA', credits: 0 };
+  const existingClass = state.classes.find(c => c.id === classId.value);
+  const cls = { id: classId.value || crypto.randomUUID(), code: courseCode.value.trim(), name: courseName.value.trim(), days, start: startTime.value, end: endTime.value, room: room.value.trim() || 'TBA', credits: Number(courseCredits.value), notified: existingClass?.notified || {} };
   state.classes = classId.value ? state.classes.map(c => c.id === cls.id ? cls : c) : [...state.classes, cls];
   saveState(); classDialog.close(); render(); showToast('Class saved.'); scheduleReminderChecks();
 }
 function openAssignmentDialog(a = null) {
-  assignmentForm.reset(); hydrateCourseOptions(); assignmentId.value = a?.id || ''; assignmentTitle.value = a?.title || ''; assignmentCourse.value = a?.courseCode || state.classes[0]?.code || ''; assignmentDue.value = a?.due || nextDateTime(1, '18:00'); assignmentPriority.value = a?.priority || 'Medium'; assignmentDialog.showModal();
+  assignmentForm.reset(); hydrateCourseOptions(); assignmentId.value = a?.id || ''; assignmentTitle.value = a?.title || ''; assignmentCourse.value = a?.courseCode || state.classes[0]?.code || ''; assignmentDue.value = a?.due || nextDateTime(1, '18:00'); assignmentPriority.value = a?.priority || 'Medium'; assignmentGrade.value = a?.grade ?? ''; assignmentDialog.showModal();
 }
 function editAssignment(id) { openAssignmentDialog(state.assignments.find(a => a.id === id)); }
 function deleteAssignment(id) { state.assignments = state.assignments.filter(a => a.id !== id); saveState(); render(); showToast('Assignment deleted.'); }
 function toggleAssignment(id) { state.assignments = state.assignments.map(a => a.id === id ? { ...a, done: !a.done } : a); saveState(); render(); }
 function saveAssignmentFromForm(e) {
   e.preventDefault();
-  const a = { id: assignmentId.value || crypto.randomUUID(), title: assignmentTitle.value.trim(), courseCode: assignmentCourse.value, due: assignmentDue.value, priority: assignmentPriority.value, done: false, notified: {} };
+  const a = { id: assignmentId.value || crypto.randomUUID(), title: assignmentTitle.value.trim(), courseCode: assignmentCourse.value, due: assignmentDue.value, priority: assignmentPriority.value, grade: assignmentGrade.value === '' ? null : Number(assignmentGrade.value), done: false, notified: {} };
   const existing = state.assignments.find(x => x.id === a.id);
   state.assignments = assignmentId.value ? state.assignments.map(x => x.id === a.id ? { ...existing, ...a, done: existing?.done || false, notified: {} } : x) : [...state.assignments, a];
   saveState(); assignmentDialog.close(); render(); showToast('Assignment saved.'); scheduleReminderChecks();
@@ -804,9 +1010,16 @@ function checkReminders() {
   for (const cls of todayClasses) {
     const start = classStartDate(cls, now);
     const mins = Math.round((start-now)/60000);
-    const keyBase = `${todayKey(now)}-${cls.id}`;
-    if (state.settings.reminders.class30m && mins <= 30 && mins > 25 && !localStorage.getItem(`${keyBase}-30`)) { notify(`Class soon: ${cls.code}`, `${cls.name} starts in 30 minutes at ${cls.room}.`); localStorage.setItem(`${keyBase}-30`, '1'); }
-    if (state.settings.reminders.class10m && mins <= 10 && mins > 5 && !localStorage.getItem(`${keyBase}-10`)) { notify(`Class soon: ${cls.code}`, `${cls.name} starts in 10 minutes at ${cls.room}.`); localStorage.setItem(`${keyBase}-10`, '1'); }
+    const dateKey = todayKey(now);
+    cls.notified = cls.notified || {};
+    if (state.settings.reminders.class30m && mins <= 30 && mins > 25 && !cls.notified[dateKey]?.['30m']) {
+      notify(`Class soon: ${cls.code}`, `${cls.name} starts in 30 minutes at ${cls.room}.`);
+      cls.notified[dateKey] = { ...cls.notified[dateKey], '30m': true };
+    }
+    if (state.settings.reminders.class10m && mins <= 10 && mins > 5 && !cls.notified[dateKey]?.['10m']) {
+      notify(`Class soon: ${cls.code}`, `${cls.name} starts in 10 minutes at ${cls.room}.`);
+      cls.notified[dateKey] = { ...cls.notified[dateKey], '10m': true };
+    }
   }
   saveState(); renderDashboard();
 }
@@ -825,11 +1038,15 @@ classForm.addEventListener('submit', saveClassFromForm);
 assignmentForm.addEventListener('submit', saveAssignmentFromForm);
 markTestDay.addEventListener('click', () => { state.checkins[todayKey()] = { time: new Date().toISOString(), status: 'on-time', demo: true }; saveState(); render(); showToast('Demo checkmark added for today.'); });
 saveSettings.addEventListener('click', () => {
-  state.settings.schoolName = schoolName.value.trim(); state.settings.campusAddress = campusAddress.value.trim(); state.settings.campusLat = Number(campusLat.value); state.settings.campusLng = Number(campusLng.value);
+  const radius = Number(radiusMeters.value);
+  if (!Number.isFinite(radius) || radius < 25 || radius > 10000) return showToast('Campus radius must be between 25 and 10,000 meters.');
+  state.settings.schoolName = schoolName.value.trim(); state.settings.campusAddress = campusAddress.value.trim(); state.settings.radiusMeters = radius; state.settings.campusLat = Number(campusLat.value); state.settings.campusLng = Number(campusLng.value);
   state.settings.reminders = { assignment2d: reminder2d.checked, assignment1d: reminder1d.checked, assignment30m: reminder30m.checked, class30m: class30m.checked, class10m: class10m.checked };
   state.settings.appearance = { theme: themePreference.value, accent: accentPreference.value, compact: compactPreference.checked, reducedMotion: motionPreference.checked };
   state.settings.notificationsEnabled = notificationsPreference.checked;
   state.settings.copilot = { mode: copilotMode.value, endpoint: copilotEndpoint.value.trim(), model: copilotModel.value.trim(), apiKey: copilotApiKey.value.trim() };
+  const keyStorageKey = copilotKeyStorageKey();
+  if (keyStorageKey) localStorage.setItem(keyStorageKey, state.settings.copilot.apiKey);
   saveState(); render(); showToast('Settings saved.');
 });
 themePreference.addEventListener('change', previewAppearance);
@@ -848,6 +1065,13 @@ document.getElementById('passwordForm').addEventListener('submit', saveAppPasswo
 document.getElementById('unlockApp').addEventListener('click', unlockApp);
 document.getElementById('createAccount').addEventListener('click', updateProfile);
 document.getElementById('signOutAccount').addEventListener('click', signOutAccount);
+document.getElementById('openAttendanceScanner').addEventListener('click', openAttendanceDialog);
+document.getElementById('startAttendanceSession').addEventListener('click', startAttendanceSession);
+document.getElementById('closeAttendanceDialog').addEventListener('click', async () => {
+  await stopAttendanceScanner();
+  document.getElementById('attendanceDialog').close();
+});
+document.getElementById('attendanceDialog').addEventListener('close', stopAttendanceScanner);
 lockAppIfConfigured();
 
 let authSignUpMode = false;
@@ -916,10 +1140,6 @@ document.addEventListener('keydown', event => {
     updateCalculator();
   }
 });
-document.getElementById('setupBiometric').addEventListener('click', setupBiometric);
-if (localStorage.getItem('campuscheck-biometric-ready') === '1') {
-  document.getElementById('biometricStatus').textContent = 'Biometric unlock is ready on this device.';
-}
 document.querySelectorAll('[data-copy-number]').forEach(button => {
   button.addEventListener('click', async () => {
     const number = button.dataset.copyNumber;

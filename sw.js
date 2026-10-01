@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rigza-v2';
+const CACHE_NAME = 'rigza-v8';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './supabase-config.js', './manifest.json', './icons/icon-192.svg', './icons/icon-512.svg', './icons/starz.jpg', './icons/my%20image%20.JPG'];
 
 self.addEventListener('install', event => {
