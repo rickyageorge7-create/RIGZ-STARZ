@@ -12,6 +12,8 @@ RIGZA is a web + Android-installable student guide built for Ricky A. George at 
 - Class reminders: 30 minutes and 10 minutes before class.
 - Campus check-in using device GPS.
 - Configurable campus check-in radius, initially set to 300 meters.
+- Check-in status explains location permission, GPS, campus-distance, and save failures; successful visits are confirmed only after saving to the signed-in account.
+- Sign out is available from the app header and Settings.
 - Daily checkmark rule: Mon–Sat count, Sunday ignored. On class days, the checkmark counts only if you reach campus before the first class.
 - Progress dashboard with streak, consistency percentage, assignment completion, and recent daily checkmarks.
 - Aurora-inspired visual theme with animated buttons, cards, gradients, and reduced-motion support.
@@ -46,7 +48,7 @@ Then open `http://localhost:8080`.
 2. Open the site in Chrome on Android.
 3. Tap Chrome menu > Add to Home screen / Install app.
 4. Enable notification permission.
-5. In Settings, when you are physically at Starz University, tap **Set to my current location** and save it for highest GPS accuracy.
+5. In Settings, when you are physically at Starz University, tap **Set to my current location** and save it for highest GPS accuracy. Check-in requires HTTPS or localhost, browser and device location permission, and an internet connection so the visit can be saved to your account.
 
 ## Important limitation
 

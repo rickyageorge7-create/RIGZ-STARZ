@@ -399,6 +399,7 @@ function renderSettings() {
   const hasAccount = Boolean(currentUser);
   accountFormFields.hidden = !hasAccount;
   document.getElementById('signOutAccount').hidden = !hasAccount;
+  document.getElementById('headerSignOut').hidden = !hasAccount;
   accountSummary.hidden = !hasAccount;
   accountSummary.textContent = hasAccount ? `${state.profile.name || 'Student'} · ${currentUser.email} · Account active` : '';
   studentIdCard.hidden = !hasAccount;
@@ -957,19 +958,80 @@ async function signOutAccount() {
 }
 
 async function checkCampusLocation() {
-  if (!navigator.geolocation) return showToast('Location is not available on this device.');
-  navigator.geolocation.getCurrentPosition(pos => {
-    const dist = distanceMeters(pos.coords.latitude, pos.coords.longitude, Number(state.settings.campusLat), Number(state.settings.campusLng));
-    const today = new Date();
-    if (dist > state.settings.radiusMeters) return showToast(`You are about ${Math.round(dist)}m away — not inside the campus zone yet.`);
-    if (!isSchoolDay(today)) return showToast('Today is not counted for your school streak.');
+  const button = document.getElementById('checkLocation');
+  const feedback = document.getElementById('checkinStatus');
+  const setFeedback = message => {
+    feedback.textContent = message;
+    feedback.hidden = !message;
+  };
+  const today = new Date();
+  const key = todayKey(today);
+  const previousCheckin = state.checkins[key];
+
+  if (!currentUser) return setFeedback('Sign in to save a campus check-in to your account.');
+  if (!isSchoolDay(today)) return setFeedback('Sunday is not counted for campus consistency.');
+  if (previousCheckin) return setFeedback('Today’s campus visit is already recorded.');
+  if (!navigator.geolocation) return setFeedback('This browser does not support location. Try a recent version of Chrome or Safari.');
+  if (!window.isSecureContext) return setFeedback('Location requires a secure connection. Open RIGZA using HTTPS or localhost.');
+
+  const latitude = Number(state.settings.campusLat);
+  const longitude = Number(state.settings.campusLng);
+  const radius = Number(state.settings.radiusMeters);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
+      || !Number.isFinite(longitude) || longitude < -180 || longitude > 180
+      || !Number.isFinite(radius) || radius < 25 || radius > 10000) {
+    return setFeedback('Campus location settings are invalid. Update the coordinates and radius in Settings, then save.');
+  }
+
+  button.disabled = true;
+  button.textContent = 'Checking location…';
+  setFeedback('Waiting for your device location. Allow location access if your browser asks.');
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0
+      });
+    });
+    const dist = distanceMeters(position.coords.latitude, position.coords.longitude, latitude, longitude);
+    if (dist > radius) {
+      const accuracy = Math.round(position.coords.accuracy);
+      return setFeedback(`Your location is about ${Math.round(dist)}m from the saved campus point${accuracy ? ` (GPS accuracy ±${accuracy}m)` : ''}. Check the campus coordinates and radius in Settings, or retry outdoors.`);
+    }
+
     const first = firstClassToday(today);
-    let status = 'on-time';
-    if (first && today > classStartDate(first, today)) status = 'late';
-    state.checkins[todayKey(today)] = { time: today.toISOString(), status, distanceMeters: Math.round(dist) };
-    saveState(); render();
-    showToast(status === 'on-time' ? 'Campus checkmark earned ✅' : 'Campus visit saved, but it was after first class.');
-  }, err => showToast(`Location error: ${err.message}`), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+    const status = first && today > classStartDate(first, today) ? 'late' : 'on-time';
+    state.checkins[key] = {
+      time: today.toISOString(),
+      status,
+      distanceMeters: Math.round(dist)
+    };
+    if (!await saveState()) {
+      if (previousCheckin) state.checkins[key] = previousCheckin;
+      else delete state.checkins[key];
+      render();
+      setFeedback('Your visit was inside the campus zone, but it could not be saved. Check your internet connection and try again.');
+      return;
+    }
+
+    render();
+    const message = status === 'on-time'
+      ? 'Campus check-in saved to your account. You earned today’s checkmark ✅'
+      : 'Campus visit saved to your account, but it was after your first class.';
+    setFeedback(message);
+    showToast(status === 'on-time' ? 'Campus checkmark earned ✅' : 'Campus visit saved.');
+  } catch (error) {
+    const messages = {
+      1: 'Location permission was denied. Allow location access for RIGZA in your browser or device settings, then try again.',
+      2: 'Your device could not determine your location. Turn on Location Services and retry outdoors.',
+      3: 'Getting your location took too long. Check that Location Services are on and try again.'
+    };
+    setFeedback(messages[error.code] || `Could not get your location: ${error.message || 'Please check Location Services and try again.'}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Check campus location';
+  }
 }
 function openClassDialog(cls = null) {
   classForm.reset(); classId.value = cls?.id || ''; courseCode.value = cls?.code || ''; courseName.value = cls?.name || ''; courseCredits.value = cls?.credits ?? 0; startTime.value = cls?.start || '08:00'; endTime.value = cls?.end || '09:00'; room.value = cls?.room || '';
@@ -1051,6 +1113,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferr
 installBtn?.addEventListener('click', async () => { if (!deferredInstallPrompt) return; deferredInstallPrompt.prompt(); deferredInstallPrompt = null; installBtn.classList.add('hidden'); });
 document.querySelectorAll('.nav-item').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
 checkLocation.addEventListener('click', checkCampusLocation);
+document.getElementById('headerSignOut').addEventListener('click', signOutAccount);
 document.getElementById('enableNotifications').addEventListener('click', requestNotifications);
 addClassBtn.addEventListener('click', () => openClassDialog());
 addAssignmentBtn.addEventListener('click', () => openAssignmentDialog());

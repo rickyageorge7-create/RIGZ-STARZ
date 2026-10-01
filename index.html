@@ -72,6 +72,7 @@
         <div class="top-actions">
           <button id="installBtn" class="ghost hidden">Install app</button>
           <button id="enableNotifications" class="primary">Enable notifications</button>
+          <button id="headerSignOut" class="ghost hidden" type="button">Sign out</button>
         </div>
       </header>
 
@@ -82,7 +83,10 @@
             <h2 id="todayStatus">Checking schedule…</h2>
             <p id="todayDetail">Your class schedule and campus check-in status will appear here.</p>
           </div>
-          <button id="checkLocation" class="primary large">Check campus location</button>
+          <div class="checkin-action">
+            <button id="checkLocation" class="primary large" type="button">Check campus location</button>
+            <p id="checkinStatus" class="meta" role="status" aria-live="polite" hidden></p>
+          </div>
         </div>
 
         <div class="dashboard-section-heading">
