@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#131226" />
+    <title>Home — RIGZA</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body class="app-page">
+    <aside class="app-sidebar">
+      <a class="brand" href="dashboard.html"><span class="brand-mark" aria-hidden="true">R</span><span><strong>RIGZA</strong><small>STARZ UNIVERSITY</small></span></a>
+      <nav class="side-nav" aria-label="Main navigation"><a class="current" href="dashboard.html" aria-current="page">Home</a><a href="onboarding.html">My profile</a></nav>
+      <div class="sidebar-note"><span class="eyebrow">Built for students</span><p>One simple space for campus life.</p></div>
+    </aside>
+    <div class="app-main">
+      <header class="app-header"><div><p class="eyebrow">MONROVIA · STARZ UNIVERSITY</p><h1 id="dashboard_greeting">Your student space</h1></div><div class="header-actions"><a class="button secondary" href="onboarding.html">Edit profile</a><button id="dashboard_sign_out" class="button quiet" type="button">Sign out</button></div></header>
+      <main class="dashboard-content">
+        <div id="dashboard_message" class="message" role="status" aria-live="polite" hidden></div>
+        <section class="welcome-card"><div><p class="eyebrow">Welcome to RIGZA</p><h2>Your campus journey starts here.</h2><p>We’re setting up your classes, attendance, learning library and academic progress in clear steps.</p></div><div class="welcome-decoration" aria-hidden="true">R</div></section>
+        <section class="section-heading"><div><p class="eyebrow">Your account</p><h2>Student profile</h2></div><a class="text-button" href="onboarding.html">Edit details →</a></section>
+        <section class="profile-summary" aria-label="Student account details"><img id="dashboard_avatar" class="avatar-preview" alt="Student profile" hidden /><div><span class="muted small">RIGZA STUDENT ID</span><strong id="dashboard_student_id" class="student-number">Loading…</strong><span id="dashboard_email" class="muted"></span></div><dl><div><dt>School</dt><dd id="dashboard_school">—</dd></div><div><dt>Programme</dt><dd id="dashboard_programme">—</dd></div><div><dt>Academic level</dt><dd id="dashboard_level">—</dd></div></dl></section>
+        <section class="section-heading"><div><p class="eyebrow">Coming in the next stages</p><h2>Made for your study life</h2></div></section>
+        <section class="feature-grid" aria-label="RIGZA features"><article class="feature-card priority"><span class="feature-symbol" aria-hidden="true">◎</span><p class="eyebrow">Core focus</p><h3>Course attendance</h3><p>Short-lived class QR, course checks, clear attendance records and a student breakdown.</p><span class="status-pill">In the next build stage</span></article><article class="feature-card"><span class="feature-symbol" aria-hidden="true">▤</span><p class="eyebrow">Learning</p><h3>Class library</h3><p>Keep course notes, registration forms and useful study resources together.</p><span class="status-pill">Planned</span></article><article class="feature-card"><span class="feature-symbol" aria-hidden="true">▦</span><p class="eyebrow">Stay prepared</p><h3>Schedule & progress</h3><p>Review your weekly classes and follow grades, credits and GPA by semester.</p><span class="status-pill">Planned</span></article></section>
+        <details class="builder-credit"><summary>Built by Ricky</summary><p>RIGZA was created by Ricky A. George for the Starz University student journey.</p></details>
+        <section class="account-controls"><h2>Account</h2><button id="dashboard_deactivate" class="text-button danger" type="button">Deactivate this RIGZA profile</button><p class="muted small">Deactivation hides your profile in RIGZA. It does not delete your Supabase account or stored data.</p></section>
+      </main>
+    </div>
+    <nav class="bottom-nav" aria-label="Mobile navigation"><a class="current" href="dashboard.html" aria-current="page"><span aria-hidden="true">⌂</span>Home</a><a href="onboarding.html"><span aria-hidden="true">◉</span>Profile</a></nav>
+    <script type="module" src="js/dashboard.js"></script>
+  </body>
+</html>

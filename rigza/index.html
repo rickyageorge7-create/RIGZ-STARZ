@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#131226" />
+    <meta name="description" content="RIGZA is a student companion for Starz University." />
+    <title>RIGZA — Student companion</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body class="auth-page">
+    <main class="auth-layout">
+      <section class="auth-story" aria-labelledby="brand_title">
+        <a class="brand" href="./" aria-label="RIGZA home">
+          <span class="brand-mark" aria-hidden="true">R</span>
+          <span><strong>RIGZA</strong><small>STARZ UNIVERSITY</small></span>
+        </a>
+        <div class="story-copy">
+          <p class="eyebrow">Your student life, in one place</p>
+          <h1 id="brand_title">Show up.<br /><span>Stay on track.</span></h1>
+          <p class="story-lede">Keep classes, attendance, course materials and your progress close at hand.</p>
+        </div>
+        <p class="story-foot">Built for Starz students in Monrovia.</p>
+      </section>
+
+      <section class="auth-card" aria-labelledby="auth_heading">
+        <p class="eyebrow">Student workspace</p>
+        <h2 id="auth_heading">Welcome back</h2>
+        <p class="muted">Sign in to continue to your RIGZA space.</p>
+        <div id="auth_message" class="message" role="status" aria-live="polite" hidden></div>
+        <form id="auth_form" class="form-stack">
+          <label id="auth_name_row" hidden>Full name<input id="auth_full_name" name="full_name" autocomplete="name" maxlength="100" /></label>
+          <label>Email address<input id="auth_email" name="email" type="email" autocomplete="email" maxlength="254" required /></label>
+          <label>Password<input id="auth_password" name="password" type="password" autocomplete="current-password" minlength="6" required /></label>
+          <button id="auth_submit" class="button primary" type="submit">Sign in</button>
+        </form>
+        <button id="google_sign_in" class="button secondary google-button" type="button"><span class="google-g" aria-hidden="true">G</span>Continue with Google</button>
+        <div class="auth-bottom">
+          <button id="auth_mode_toggle" class="text-button" type="button">Create a student account</button>
+          <button id="forgot_password" class="text-button" type="button">Forgot password?</button>
+        </div>
+        <p class="privacy-note">Your student information is private to your account.</p>
+      </section>
+    </main>
+    <script type="module" src="js/login.js"></script>
+  </body>
+</html>

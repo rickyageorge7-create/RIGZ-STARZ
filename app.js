@@ -122,7 +122,12 @@ function fmtTime(time) {
 function fmtDate(dateString) {
   return new Date(dateString).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
-function todayKey(date = new Date()) { return date.toISOString().slice(0, 10); }
+function todayKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 function minutesOf(time) { const [h,m]=time.split(':').map(Number); return h*60+m; }
 function isSchoolDay(date = new Date()) { return SCHOOL_DAYS.includes(DAY_NAMES[date.getDay()]); }
 function classesForDay(dayName) {
@@ -157,8 +162,14 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
 function switchView(viewId) {
   document.body.dataset.view = viewId;
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === viewId));
-  document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewId));
-  document.getElementById('viewTitle').textContent = viewId[0].toUpperCase() + viewId.slice(1);
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    const active = btn.dataset.view === viewId;
+    btn.classList.toggle('active', active);
+    if (active) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  });
+  const viewTitles = { dashboard: 'Dashboard', schedule: 'Schedule', assignments: 'Assignments', progress: 'Progress', tools: 'Student tools', settings: 'Settings' };
+  document.getElementById('viewTitle').textContent = viewTitles[viewId] || 'Dashboard';
   document.querySelector(`.mobile-nav .nav-item[data-view="${viewId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   render();
 }
@@ -806,6 +817,11 @@ async function unlockApp() {
   }
   function authErrorMessage(error) {
     const message = error?.message || 'Authentication failed. Please try again.';
+    if (/failed to fetch|networkerror|load failed/i.test(message)) {
+      return window.location.protocol === 'file:'
+        ? 'Supabase sign-in cannot connect from a file opened directly. Start the local server and open http://localhost:8080, or use the deployed HTTPS site.'
+        : 'RIGZA could not reach Supabase. In Supabase, make sure the project is active (resume it if paused) and copy its current Project URL from Connect into supabase-config.js. If it is active and the URL is correct, try a different network or DNS resolver.';
+    }
     return /rate limit|rate_limit|email.*limit|too many requests/i.test(message)
       ? 'Supabase email sending is temporarily rate-limited. Please wait and try again later, or use an account that was already created.'
       : message;
@@ -862,27 +878,35 @@ async function unlockApp() {
     const signUp = !document.getElementById('authNameLabel').hidden;
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
-    if (document.getElementById('authNewPasswordLabel').hidden === false) {
-      const { error } = await supabaseClient.auth.updateUser({ password: document.getElementById('newPassword').value });
-      if (error) return setAuthMessage(authErrorMessage(error), true);
+    try {
+      if (document.getElementById('authNewPasswordLabel').hidden === false) {
+        const { error } = await supabaseClient.auth.updateUser({ password: document.getElementById('newPassword').value });
+        if (error) return setAuthMessage(authErrorMessage(error), true);
+        document.getElementById('authForm').reset();
+        setAuthMode(false);
+        return setAuthMessage('Password updated. You can continue using RIGZA.');
+      }
+      setAuthMessage(signUp ? 'Creating your account…' : 'Signing you in…');
+      const result = signUp
+        ? await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: document.getElementById('authName').value.trim() } } })
+        : await supabaseClient.auth.signInWithPassword({ email, password });
+      if (result.error) return setAuthMessage(authErrorMessage(result.error), true);
       document.getElementById('authForm').reset();
-      setAuthMode(false);
-      return setAuthMessage('Password updated. You can continue using RIGZA.');
+      if (signUp && !result.data.session) return setAuthMessage('Account created. Check your email to confirm it, then sign in.');
+    } catch (error) {
+      setAuthMessage(authErrorMessage(error), true);
     }
-    setAuthMessage(signUp ? 'Creating your account…' : 'Signing you in…');
-    const result = signUp
-      ? await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: document.getElementById('authName').value.trim() } } })
-      : await supabaseClient.auth.signInWithPassword({ email, password });
-    if (result.error) return setAuthMessage(authErrorMessage(result.error), true);
-    document.getElementById('authForm').reset();
-    if (signUp && !result.data.session) return setAuthMessage('Account created. Check your email to confirm it, then sign in.');
   }
   async function resetPassword() {
     if (!supabaseClient) return setAuthMessage('Add your Supabase URL and public anon key to supabase-config.js first.', true);
     const email = document.getElementById('authEmail').value.trim();
     if (!email) return setAuthMessage('Enter your email address first.', true);
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
-    setAuthMessage(error ? authErrorMessage(error) : 'Password reset instructions sent. Check your email.', Boolean(error));
+    try {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+      setAuthMessage(error ? authErrorMessage(error) : 'Password reset instructions sent. Check your email.', Boolean(error));
+    } catch (error) {
+      setAuthMessage(authErrorMessage(error), true);
+    }
   }
   async function initializeAuthentication() {
     if (!supabaseClient) {
@@ -1042,6 +1066,7 @@ function editClass(id) { openClassDialog(state.classes.find(c => c.id === id)); 
 function deleteClass(id) { state.classes = state.classes.filter(c => c.id !== id); saveState(); render(); showToast('Class deleted.'); }
 function saveClassFromForm(e) {
   e.preventDefault();
+  if (minutesOf(endTime.value) <= minutesOf(startTime.value)) return showToast('Class end time must be later than its start time.');
   const days = [...courseDays.selectedOptions].map(o => o.value).sort((a, b) => DAY_ORDER[a] - DAY_ORDER[b]);
   if (!days.length) return showToast('Pick at least one day.');
   const existingClass = state.classes.find(c => c.id === classId.value);
@@ -1057,6 +1082,7 @@ function deleteAssignment(id) { state.assignments = state.assignments.filter(a =
 function toggleAssignment(id) { state.assignments = state.assignments.map(a => a.id === id ? { ...a, done: !a.done } : a); saveState(); render(); }
 function saveAssignmentFromForm(e) {
   e.preventDefault();
+  if (assignmentGrade.value !== '' && (Number(assignmentGrade.value) < 0 || Number(assignmentGrade.value) > 100)) return showToast('Grade must be between 0 and 100.');
   const a = { id: assignmentId.value || crypto.randomUUID(), title: assignmentTitle.value.trim(), courseCode: assignmentCourse.value, due: assignmentDue.value, priority: assignmentPriority.value, grade: assignmentGrade.value === '' ? null : Number(assignmentGrade.value), done: false, notified: {} };
   const existing = state.assignments.find(x => x.id === a.id);
   state.assignments = assignmentId.value ? state.assignments.map(x => x.id === a.id ? { ...existing, ...a, done: existing?.done || false, notified: {} } : x) : [...state.assignments, a];
@@ -1123,17 +1149,22 @@ document.getElementById('cancelPassword').addEventListener('click', () => passwo
 classForm.addEventListener('submit', saveClassFromForm);
 assignmentForm.addEventListener('submit', saveAssignmentFromForm);
 markTestDay.addEventListener('click', () => { state.checkins[todayKey()] = { time: new Date().toISOString(), status: 'on-time', demo: true }; saveState(); render(); showToast('Demo checkmark added for today.'); });
-saveSettings.addEventListener('click', () => {
+saveSettings.addEventListener('click', async () => {
   const radius = Number(radiusMeters.value);
   if (!Number.isFinite(radius) || radius < 25 || radius > 10000) return showToast('Campus radius must be between 25 and 10,000 meters.');
-  state.settings.schoolName = schoolName.value.trim(); state.settings.campusAddress = campusAddress.value.trim(); state.settings.radiusMeters = radius; state.settings.campusLat = Number(campusLat.value); state.settings.campusLng = Number(campusLng.value);
+  const latitude = Number(campusLat.value);
+  const longitude = Number(campusLng.value);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return showToast('Enter a valid campus latitude and longitude.');
+  state.settings.schoolName = schoolName.value.trim(); state.settings.campusAddress = campusAddress.value.trim(); state.settings.radiusMeters = radius; state.settings.campusLat = latitude; state.settings.campusLng = longitude;
   state.settings.reminders = { assignment2d: reminder2d.checked, assignment1d: reminder1d.checked, assignment30m: reminder30m.checked, class30m: class30m.checked, class10m: class10m.checked };
   state.settings.appearance = { theme: themePreference.value, accent: accentPreference.value, compact: compactPreference.checked, reducedMotion: motionPreference.checked };
   state.settings.notificationsEnabled = notificationsPreference.checked;
   state.settings.copilot = { mode: copilotMode.value, endpoint: copilotEndpoint.value.trim(), model: copilotModel.value.trim(), apiKey: copilotApiKey.value.trim() };
   const keyStorageKey = copilotKeyStorageKey();
   if (keyStorageKey) localStorage.setItem(keyStorageKey, state.settings.copilot.apiKey);
-  saveState(); render(); showToast('Settings saved.');
+  const saved = await saveState();
+  render();
+  if (saved) showToast('Settings saved.');
 });
 themePreference.addEventListener('change', previewAppearance);
 accentPreference.addEventListener('change', previewAppearance);

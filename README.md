@@ -33,7 +33,7 @@ RIGZA is a web + Android-installable student guide built for Ricky A. George at 
 
 ## How to run locally
 
-Open `index.html` in a browser, or serve the folder with a local static server.
+Run the app through a local web server. Opening `index.html` directly as a `file://` page prevents Supabase authentication and location features from working reliably.
 
 ```bash
 cd starz-student-app
